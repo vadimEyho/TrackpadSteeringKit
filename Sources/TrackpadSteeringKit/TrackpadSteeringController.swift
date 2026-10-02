@@ -58,6 +58,8 @@ public final class TrackpadSteeringController:
 
     private var lastHapticStep: Int?
 
+    private var lastThrottleHapticStep: Int?
+
     private var lastEdge = 0
 
     private var previousSteering = 0.0
@@ -226,6 +228,7 @@ public final class TrackpadSteeringController:
             startX = nil
 
             lastHapticStep = nil
+            lastThrottleHapticStep = nil
             lastEdge = 0
 
             previousSteering = 0
@@ -301,6 +304,7 @@ public final class TrackpadSteeringController:
 
         if configuration.hapticsEnabled {
             updateHaptics(for: angle)
+
         }
 
 
@@ -480,6 +484,8 @@ public final class TrackpadSteeringController:
         let throttle =
             throttleValue()
 
+        updateThrottleHaptics(for: throttle)
+
         let brake =
             brakeValue()
 
@@ -547,6 +553,7 @@ public final class TrackpadSteeringController:
         brakeContact = nil
 
         lastHapticStep = nil
+        lastThrottleHapticStep = nil
 
         lastEdge = 0
 
@@ -557,6 +564,66 @@ public final class TrackpadSteeringController:
 
 
     // MARK: - Haptics
+
+    private func updateThrottleHaptics(
+        for throttle: Double
+    ) {
+
+        guard let actuator = hapticActuator else {
+            return
+        }
+
+        let clamped =
+            max(
+                0,
+                min(1, throttle)
+            )
+
+        // 0...20 = шаги по 5%.
+        let step =
+            Int(
+                floor(
+                    clamped * 20.0 + 0.0001
+                )
+            )
+
+        guard let previous =
+            lastThrottleHapticStep
+        else {
+            lastThrottleHapticStep = step
+            return
+        }
+
+        guard step != previous else {
+            return
+        }
+
+        // Если за один frame перескочили несколько ступеней,
+        // всё равно даём один чистый тик, а не очередь ударов.
+        lastThrottleHapticStep = step
+
+        // Ноль не считаем отдельной 5%-ступенью.
+        guard step > 0 else {
+            return
+        }
+
+        let progress =
+            Double(step) / 20.0
+
+        // Газ ощущается легче руля,
+        // но постепенно становится плотнее к 100%.
+        let intensity =
+            Float(
+                0.18 +
+                progress * 0.24
+            )
+
+        _ = actuator.actuate(
+            pattern: .light,
+            intensity: intensity
+        )
+    }
+
 
     private func updateHaptics(
         for angle: Double
